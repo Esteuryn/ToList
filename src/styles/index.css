@@ -1,0 +1,11 @@
+/* src/styles/index.css */
+@import "tailwindcss";
+
+/* Configuración mínima */
+:root {
+  color-scheme: light dark;
+}
+
+html, body, #root {
+  height: 100%;
+}
