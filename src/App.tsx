@@ -1,46 +1,99 @@
-import React, { useEffect, useState } from 'react'
+import { type FormEvent } from 'react'
 import './styles/index.css'
 import AppShell from './layout/AppShell'
-import { BoardCanvas, type BoardTask, type TaskStatus } from './features/tasks/BoardCanvas'
-
-type Cols = Record<TaskStatus, BoardTask[]>
-const LS_KEY = 'tolist.board.v1'
-
-function load(): Cols {
-  const raw = localStorage.getItem(LS_KEY)
-  if (raw) return JSON.parse(raw)
-  // demo inicial
-  return {
-    todo:  [{ id:'1', title:'Diseñar logo', priority:'media' }],
-    doing: [{ id:'2', title:'Formulario de tareas', description:'Título, descripción, fecha' }],
-    done:  [{ id:'3', title:'Terminar de configurar todo', dueAt:new Date().toISOString() }],
-  }
-}
+import { TaskBoard, CreateTaskModal, EditTaskModal } from './components/tasks'
+import { ToastContainer } from './components/ui'
+import { useTasks, useTaskModals, useToast, ThemeContext, useThemeProvider, ToastContext } from './hooks'
 
 export default function App() {
-  const [cols, setCols] = useState<Cols>(() => load())
+  const themeProvider = useThemeProvider()
+  const { toasts, removeToast, toast } = useToast()
+  const handleTaskMove = (taskTitle: string, from: string, to: string) => {
+    const statusNames = {
+      todo: 'Por hacer',
+      doing: 'En curso', 
+      done: 'Completadas'
+    }
+    toast.success(`"${taskTitle}" movida de ${statusNames[from as keyof typeof statusNames]} a ${statusNames[to as keyof typeof statusNames]}`)
+  }
 
-  // persistencia
-  useEffect(() => {
-    localStorage.setItem(LS_KEY, JSON.stringify(cols))
-  }, [cols])
+  const { columns, moveTask, createTask, updateTask, deleteTask } = useTasks(handleTaskMove)
+  const {
+    createModalOpen,
+    createFormData,
+    setCreateFormData,
+    openCreateModal,
+    closeCreateModal,
+    editModalOpen,
+    editingTaskId,
+    editFormData,
+    setEditFormData,
+    openEditModal,
+    closeEditModal,
+  } = useTaskModals()
 
-  // mover tarjetas entre columnas
-  const handleMove = (taskId: string, from: TaskStatus, to: TaskStatus) => {
-    setCols((prev) => {
-      if (from === to) return prev
-      const source = [...prev[from]]
-      const idx = source.findIndex((t) => t.id === taskId)
-      if (idx < 0) return prev
-      const [task] = source.splice(idx, 1)
-      const dest = [...prev[to], task] // al final; luego podemos permitir orden
-      return { ...prev, [from]: source, [to]: dest }
-    })
+  const handleCreateTask = (e: FormEvent) => {
+    e.preventDefault()
+    const success = createTask(createFormData)
+    if (success) {
+      toast.success(`Tarea "${createFormData.title}" creada exitosamente`)
+      closeCreateModal()
+    }
+  }
+
+  const handleUpdateTask = (e: FormEvent) => {
+    e.preventDefault()
+    if (!editingTaskId) return
+    
+    const success = updateTask(editingTaskId, editFormData)
+    if (success) {
+      toast.success(`Tarea "${editFormData.title}" actualizada exitosamente`)
+      closeEditModal()
+    }
+  }
+
+  const handleDeleteTask = () => {
+    if (!editingTaskId) return
+    
+    const confirmed = window.confirm('¿Eliminar esta tarea? Esta acción no se puede deshacer.')
+    if (!confirmed) return
+    
+    const taskTitle = editFormData.title
+    deleteTask(editingTaskId)
+    toast.success(`Tarea "${taskTitle}" eliminada exitosamente`)
+    closeEditModal()
   }
 
   return (
-    <AppShell onAddTaskClick={() => console.log('Nueva tarea (abrir modal)')}>
-      <BoardCanvas columns={cols} onMove={handleMove} onOpen={(t) => console.log('Abrir', t)} />
-    </AppShell>
+    <ThemeContext.Provider value={themeProvider}>
+      <ToastContext.Provider value={{ toast }}>
+        <AppShell onAddTaskClick={openCreateModal}>
+          <TaskBoard
+            columns={columns}
+            onMove={moveTask}
+            onTaskClick={openEditModal}
+          />
+        </AppShell>
+
+        <CreateTaskModal
+          open={createModalOpen}
+          onClose={closeCreateModal}
+          formData={createFormData}
+          onFormDataChange={setCreateFormData}
+          onSubmit={handleCreateTask}
+        />
+
+        <EditTaskModal
+          open={editModalOpen}
+          onClose={closeEditModal}
+          formData={editFormData}
+          onFormDataChange={setEditFormData}
+          onSubmit={handleUpdateTask}
+          onDelete={handleDeleteTask}
+        />
+
+        <ToastContainer toasts={toasts} onRemoveToast={removeToast} />
+      </ToastContext.Provider>
+    </ThemeContext.Provider>
   )
 }

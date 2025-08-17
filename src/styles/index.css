@@ -1,7 +1,6 @@
-/* src/styles/index.css */
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
-/* Configuración mínima */
 :root {
   color-scheme: light dark;
 }
